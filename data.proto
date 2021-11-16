@@ -41,7 +41,7 @@ message ActorConfig {
     int32 model_version = 3;
     int32 num_input = 4;
     int32 num_action = 5;
-    string env_type = 6; // TODO Remove those by retrieving info from the environment instead
+    string env_type = 6;
     string env_name = 7;
 }
 
@@ -56,6 +56,7 @@ message TrialConfig {
     string run_id = 1;
     EnvConfig environment_config = 3;
     repeated TrialActor actors = 4;
+    string mlflow_run_id = 5;
     int32 distinguished_actor = 6;
 }
 
@@ -76,6 +77,8 @@ message AgentAction {
         ContinuousAction continuous_action = 1;
         int32 discrete_action = 2;
     };
+    NDArray policy = 3; // optional: policy from which action was drawn
+    float value = 4; // optional: value of the state from which the action was taken
 }
 
 message ModelArgs {
@@ -102,6 +105,7 @@ message RunConfig {
   string environment_name = 6;
   uint32 player_count = 8;
   float epsilon_min = 9;
+  float epsilon_max = 29;
   uint32 epsilon_steps = 10;
   uint32 target_net_update_schedule = 11;
   float learning_rate = 12;
