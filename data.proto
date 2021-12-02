@@ -43,6 +43,7 @@ message ActorConfig {
     int32 num_action = 5;
     string env_type = 6;
     string env_name = 7;
+    string device = 8;
 }
 
 message TrialActor {
@@ -195,6 +196,8 @@ message MuZeroTrainingConfig {
   float s_weight = 42;
   float v_weight = 43;
   uint32 demonstration_trials = 44;
+  string train_device = 45;
+  string actor_device = 46;
 }
 
 message MuZeroTrainingRunConfig {
