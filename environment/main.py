@@ -142,7 +142,8 @@ async def environment(environment_session):
             if done:
                 break
     finally:
-        env_worker.terminate()
+        env_worker.join()
+        # env_worker.terminate()
 
 
 def environment_implementation(actors, env_config, event_queue, observation_queue, rewards_queue):
@@ -234,7 +235,11 @@ def environment_implementation(actors, env_config, event_queue, observation_queu
     env.close()
 
 
+from threading import Thread
+
+
 class EnvironmentWorker(mp.Process):
+    # class EnvironmentWorker(Thread):
     def __init__(self, actors, env_config, event_queue, observation_queue, rewards_queue):
         super().__init__()
         self._event_queue = event_queue
