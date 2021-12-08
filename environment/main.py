@@ -140,10 +140,14 @@ async def environment(environment_session):
                 environment_session.produce_observations(observations=observations)
 
             if done:
+                print("ENVIRONMENT IMPLEMENTATION END OF EVENT LOOP")
                 break
+        print("DONE ENVIRONMENT EVENT LOOP")
     finally:
+        print("JOINING ENVIRONMENT WORKER")
         env_worker.join()
         # env_worker.terminate()
+    print("END OF ENVIRONMENT IMPLEMENTATION")
 
 
 def environment_implementation(actors, env_config, event_queue, observation_queue, rewards_queue):
@@ -233,6 +237,7 @@ def environment_implementation(actors, env_config, event_queue, observation_queu
             done = gym_obs.done
 
     env.close()
+    print("ENVIRONMENT IMPLEMENTATION DONE")
 
 
 from threading import Thread
