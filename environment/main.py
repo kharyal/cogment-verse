@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from queue import Empty
 import cog_settings
-
-import multiprocessing as mp
 
 from cogment_verse_environment.factory import make_environment
 from data_pb2 import Observation, NDArray
@@ -31,6 +28,8 @@ from dotenv import load_dotenv
 import asyncio
 import logging
 import os
+import multiprocessing as mp
+import queue
 
 load_dotenv()
 
@@ -105,158 +104,165 @@ def shrink_image(pixels, max_size):
     return pixels
 
 
-async def environment(environment_session):
-    event_queue = mp.Queue()
-    observation_queue = mp.Queue()
-    rewards_queue = mp.Queue()
-    actors = environment_session.get_active_actors()
-    env_config = environment_session.config
-    env_worker = EnvironmentWorker(actors, env_config, event_queue, observation_queue, rewards_queue)
+def process_step(env, event, actors, teacher_idx, act_shape, current_player, render, max_size, steerable):
+    player_rewards = []
+    player_override = -1
 
-    try:
-        env_worker.start()
-        cog_obs, done = observation_queue.get()
-        environment_session.start([("*", cog_obs)])
+    # special handling of human intervention
+    if steerable and event.actions[teacher_idx].action.discrete_action != -1:
+        gym_action = gym_action_from_cog_action(event.actions[teacher_idx].action)
+        player_override = teacher_idx
+        current_player = teacher_idx
+    else:
+        gym_action = gym_action_from_cog_action(event.actions[current_player].action)
+        current_player = current_player
 
-        async for event in environment_session.event_loop():
-            assert env_worker.is_alive()
-            event_queue.put(event)
-            cog_obs, done = observation_queue.get()
-            observations = [("*", cog_obs)]
-            rewards = rewards_queue.get()
-            for reward, players_to_reward in rewards:
-                environment_session.add_reward(
-                    value=reward,
-                    confidence=1.0,
-                    to=players_to_reward,
-                )
+    assert gym_action != -1
 
-            if environment_session.get_tick_id() >= 1e1000 or done:
-                log.debug(
-                    f"[Environment] ending trial [{environment_session.get_trial_id()}] @ tick #{environment_session.get_tick_id()}..."
-                )
-                environment_session.end(observations=observations)
-            else:
-                environment_session.produce_observations(observations=observations)
-
-            if done:
-                print("ENVIRONMENT IMPLEMENTATION END OF EVENT LOOP")
-                break
-        print("DONE ENVIRONMENT EVENT LOOP")
-    finally:
-        print("JOINING ENVIRONMENT WORKER")
-        env_worker.join()
-        # env_worker.terminate()
-    print("END OF ENVIRONMENT IMPLEMENTATION")
-
-
-def environment_implementation(actors, env_config, event_queue, observation_queue, rewards_queue):
-
-    env_kwargs = {
-        "num_players": env_config.player_count,
-        "flatten": env_config.flatten,  # todo: we should have env_kwargs in proto
-        "framestack": env_config.framestack,
-    }
-    env = make_environment(env_config.env_type, env_config.env_name, **env_kwargs)
-    env.seed(env_config.seed)
-
-    max_size = env_config.render_width or 256
-
-    steerable = False
-    teacher_idx = -1
-    done = False
-
-    # If there is an extra player, it must be the teacher/expert
-    # and it must be the _last_ player this is only supported form of HILL at the moment)
-    # todo: Make this more general and configurable (via TrialConfig)
-    if len(actors) != env_kwargs["num_players"]:
-        log.debug(len(actors), env_kwargs["num_players"])
-        assert len(actors) == env_kwargs["num_players"] + 1
-        for idx, actor in enumerate(actors):
-            log.debug(idx, actor.actor_name, actor.actor_class_name)
-        steerable = True
-        teacher_idx = len(actors) - 1
-        assert actors[teacher_idx].actor_class_name == "teacher_agent"
-
-    env_spec = env.env_spec
-    assert len(env_spec.act_dim) == 1, "only a single action space is currently supported"
-    act_shape = env_spec.act_shape[0]
-
-    gym_obs = env.reset()
-    render = env_config.render
-
+    gym_action = np.array(gym_action).reshape(act_shape)
+    gym_obs = env.step(gym_action)
     if render:
         pixels = shrink_image(env.render(mode="rgb_array"), max_size)
+        if player_override != -1:
+            pixels = draw_border(pixels)
+
+        assert len(pixels.tobytes()) == np.prod(pixels.shape)
     else:
         pixels = np.array([[[0, 0, 0]]], dtype=np.uint8)
 
-    assert len(pixels.tobytes()) == np.prod(pixels.shape)
+    for idx, reward in enumerate(gym_obs.rewards):
+        if player_override != -1 and idx == current_player:
+            player_rewards.append((actors[player_override].actor_name, reward))
 
-    cog_obs = cog_obs_from_gym_obs(gym_obs.observation, pixels, gym_obs.current_player, gym_obs.legal_moves_as_int)
-    observation_queue.put((cog_obs, False))
+        else:
+            player_rewards.append((actors[idx].actor_name, reward))
 
-    while not done:
-        event = event_queue.get()
-        rewards = []
+    cog_obs = cog_obs_from_gym_obs(
+        gym_obs.observation,
+        pixels,
+        gym_obs.current_player,
+        gym_obs.legal_moves_as_int,
+        player_override=player_override,
+    )
 
-        if event.actions:
-            player_override = -1
-            # special handling of human intervention
-            if steerable and event.actions[teacher_idx].action.discrete_action != -1:
-                gym_action = gym_action_from_cog_action(event.actions[teacher_idx].action)
-                player_override = teacher_idx
-                current_player = teacher_idx
-            else:
-                gym_action = gym_action_from_cog_action(event.actions[gym_obs.current_player].action)
-                current_player = gym_obs.current_player
-
-            gym_action = np.array(gym_action).reshape(act_shape)
-            gym_obs = env.step(gym_action)
-            if render:
-                pixels = shrink_image(env.render(mode="rgb_array"), max_size)
-                if player_override != -1:
-                    pixels = draw_border(pixels)
-
-            assert len(pixels.tobytes()) == np.prod(pixels.shape)
-
-            for idx, reward in enumerate(gym_obs.rewards):
-                if player_override != -1 and idx == current_player:
-                    rewards.append((reward, [actors[player_override].actor_name]))
-                else:
-                    rewards.append((reward, [actors[idx].actor_name]))
-
-            cog_obs = cog_obs_from_gym_obs(
-                gym_obs.observation,
-                pixels,
-                gym_obs.current_player,
-                gym_obs.legal_moves_as_int,
-                player_override=player_override,
-            )
-            observation_queue.put((cog_obs, gym_obs.done))
-            rewards_queue.put(rewards)
-            done = gym_obs.done
-
-    env.close()
-    print("ENVIRONMENT IMPLEMENTATION DONE")
-
-
-from threading import Thread
+    return cog_obs, player_rewards, gym_obs.done
 
 
 class EnvironmentWorker(mp.Process):
-    # class EnvironmentWorker(Thread):
-    def __init__(self, actors, env_config, event_queue, observation_queue, rewards_queue):
+    def __init__(self, actors, config):
         super().__init__()
-        self._event_queue = event_queue
+        self._event_queue = mp.Queue()
+        self._result_queue = mp.Queue()
         self._actors = actors
-        self._env_config = env_config
-        self._observation_queue = observation_queue
-        self._rewards_queue = rewards_queue
+        self._config = config
 
     def run(self):
-        environment_implementation(
-            self._actors, self._env_config, self._event_queue, self._observation_queue, self._rewards_queue
-        )
+        actors = self._actors
+        env_config = self._config
+        env_kwargs = {
+            "num_players": env_config.player_count,
+            "flatten": env_config.flatten,  # todo: we should have env_kwargs in proto
+            "framestack": env_config.framestack,
+        }
+        env = make_environment(env_config.env_type, env_config.env_name, **env_kwargs)
+        env.seed(env_config.seed)
+
+        max_size = env_config.render_width or 256
+
+        steerable = False
+        teacher_idx = -1
+
+        # If there is an extra player, it must be the teacher/expert
+        # and it must be the _last_ player this is only supported form of HILL at the moment)
+        # todo: Make this more general and configurable (via TrialConfig)
+        if len(actors) != env_kwargs["num_players"]:
+            log.debug(len(actors), env_kwargs["num_players"])
+            assert len(actors) == env_kwargs["num_players"] + 1
+            for idx, actor in enumerate(actors):
+                log.debug(idx, actor.actor_name, actor.actor_class_name)
+            steerable = True
+            teacher_idx = len(actors) - 1
+            assert actors[teacher_idx].actor_class_name == "teacher_agent"
+
+        env_spec = env.env_spec
+        assert len(env_spec.act_dim) == 1, "only a single action space is currently supported"
+        act_shape = env_spec.act_shape[0]
+
+        gym_obs = env.reset()
+        render = env_config.render
+
+        if render:
+            pixels = shrink_image(env.render(mode="rgb_array"), max_size)
+        else:
+            pixels = np.array([[[0, 0, 0]]], dtype=np.uint8)
+
+        assert len(pixels.tobytes()) == np.prod(pixels.shape)
+
+        done = False
+        cog_obs = cog_obs_from_gym_obs(gym_obs.observation, pixels, gym_obs.current_player, gym_obs.legal_moves_as_int)
+        self._result_queue.put((cog_obs, [], False))
+
+        while not done:
+            event = self._event_queue.get()
+            if event.actions:
+                cog_obs, player_rewards, done = process_step(
+                    env,
+                    event,
+                    actors,
+                    teacher_idx,
+                    act_shape,
+                    cog_obs.current_player,
+                    render,
+                    max_size,
+                    steerable,
+                )
+                self._result_queue.put((cog_obs, player_rewards, done))
+
+        env.close()
+
+
+async def async_get(q, timeout=0.01):
+    while True:
+        try:
+            return q.get_nowait()
+        except queue.Empty:
+            await asyncio.sleep(timeout)
+
+
+async def environment(environment_session):
+    actors = environment_session.get_active_actors()
+    env_config = environment_session.config
+    worker = EnvironmentWorker(actors, env_config)
+    worker.start()
+
+    try:
+        cog_obs, _, done = await async_get(worker._result_queue)
+        environment_session.start([("*", cog_obs)])
+
+        async for event in environment_session.event_loop():
+            if event.actions:
+                assert worker.is_alive()
+                worker._event_queue.put(event)
+                cog_obs, player_rewards, done = await async_get(worker._result_queue)
+                observations = [("*", cog_obs)]
+
+                for player, reward in player_rewards:
+                    environment_session.add_reward(
+                        value=reward,
+                        confidence=1.0,
+                        to=[player],
+                    )
+
+                if environment_session.get_tick_id() >= 1e1000 or done:
+                    log.debug(
+                        f"[Environment] ending trial [{environment_session.get_trial_id()}] @ tick #{environment_session.get_tick_id()}..."
+                    )
+                    environment_session.end(observations=observations)
+                else:
+                    environment_session.produce_observations(observations=observations)
+
+    finally:
+        worker.terminate()
 
 
 async def main():
