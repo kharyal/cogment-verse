@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cogment.api.trial_datastore_pb2_grpc import TrialDatastoreSPStub
-from cogment.api.trial_datastore_pb2 import RetrieveTrialsRequest, RetrieveSamplesRequest
-
 import grpc.aio
+from cogment.api.trial_datastore_pb2 import RetrieveSamplesRequest, RetrieveTrialsRequest
+from cogment.api.trial_datastore_pb2_grpc import TrialDatastoreSPStub
 
 
 class TrialDatastoreClient:
@@ -23,7 +22,7 @@ class TrialDatastoreClient:
         channel = grpc.aio.insecure_channel(endpoint)
         self._stub = TrialDatastoreSPStub(channel)
 
-    async def retrieve_trials(self, trial_ids, timeout=5000):
+    async def retrieve_trials(self, trial_ids, timeout=30000):
         req = RetrieveTrialsRequest(trial_ids=trial_ids, timeout=timeout)
 
         rep = await self._stub.RetrieveTrials(req)

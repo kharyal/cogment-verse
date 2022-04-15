@@ -74,7 +74,7 @@ Because Cogment Verse already defines unique ports for all the services this sho
 To configure the _developed_ service, we will use a dedicated `.env` file. Let's start by copying the root [`.env`](/.env) to the folder of the developed service. Once this is done we need to edit the file to replace the hostname of the accessed service by `localhost`. For example to work on `torch_agents`, we would edit the following:
 
 ```
-COGMENT_VERSE_TRIAL_DATASTORE_ENDPOINT=trial_datastor:${COGMENT_VERSE_TRIAL_DATASTORE_PORT}
+COGMENT_VERSE_TRIAL_DATASTORE_ENDPOINT=trial_datastore:${COGMENT_VERSE_TRIAL_DATASTORE_PORT}
 COGMENT_VERSE_MODEL_REGISTRY_ENDPOINT=model_registry:${COGMENT_VERSE_MODEL_REGISTRY_PORT}
 COGMENT_VERSE_ORCHESTRATOR_ENDPOINT=orchestrator:${COGMENT_VERSE_ORCHESTRATOR_PORT}
 ```
@@ -92,7 +92,7 @@ COGMENT_VERSE_ORCHESTRATOR_ENDPOINT=localhost:${COGMENT_VERSE_ORCHESTRATOR_PORT}
 Now that everything is configured, we can build and run the service we rely on in Docker. To do that we will rely directly on `docker-compose up --build`. For example to work on `torch_agents`, we would run:
 
 ```
-cogment run sync && docker-compose -f docker-compose.yaml -f docker-compose.local.yaml up --build trial_datastore model_registry orchestrator environment tf_agents mlflow grafana prometheus
+cogment run copy && docker-compose -f docker-compose.yaml -f docker-compose.local.yaml up --build trial_datastore model_registry orchestrator environment tf_agents mlflow grafana prometheus
 ```
 
 ### Developing!

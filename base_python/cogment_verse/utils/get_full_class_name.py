@@ -12,20 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cogment_verse_environment.gym_env import GymEnv
-from cogment_verse_environment.atari import AtariEnv
-from cogment_verse_environment.tetris import TetrisEnv
-from cogment_verse_environment.minatarenv import MinAtarEnv
-from cogment_verse_environment.zoo_env import PettingZooEnv
-
-ENVIRONMENT_CONSTRUCTORS = {
-    "gym": GymEnv,
-    "atari": AtariEnv,
-    "minatar": MinAtarEnv,
-    "tetris": TetrisEnv,
-    "pettingzoo": PettingZooEnv,
-}
+# no import
 
 
-def make_environment(env_type, env_name, **kwargs):
-    return ENVIRONMENT_CONSTRUCTORS[env_type](env_name=env_name, **kwargs)
+def get_full_class_name(instance):
+    return f"{type(instance).__module__}.{type(instance).__name__}"

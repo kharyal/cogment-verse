@@ -13,15 +13,14 @@
 # limitations under the License.
 
 import copy
+
 import numpy as np
-
 import torch
-from torch import nn
-
-from cogment_verse_torch_agents.third_party.hive.utils.schedule import get_schedule, PeriodicSchedule
-from cogment_verse_torch_agents.third_party.hive.utils.utils import get_optimizer_fn
-from cogment_verse_torch_agents.third_party.hive.dqn import legal_moves_adapter
 from cogment_verse_torch_agents.third_party.hive.agent import Agent
+from cogment_verse_torch_agents.third_party.hive.dqn import legal_moves_adapter
+from cogment_verse_torch_agents.third_party.hive.utils.schedule import PeriodicSchedule, get_schedule
+from cogment_verse_torch_agents.third_party.hive.utils.utils import get_optimizer_fn
+from torch import nn
 
 # TODO address those issues properly
 # pylint: disable=redefined-builtin,arguments-differ,arguments-renamed
@@ -96,8 +95,7 @@ class SimpleConvModel(nn.Module):
             x = x.unsqueeze(0)
         batch_size = x.size(0)
 
-        x = x.type(torch.float)
-        x = x.mul_(1.0 / 255)
+        x = x.type(torch.float) / 255.0
         conv_out = self.conv(x)
         return self.head(conv_out.view(batch_size, -1))
 
@@ -246,17 +244,18 @@ class NatureAtariDQNModel(Agent):
         actions = batch["actions"].long()
         pred_qvals = pred_qvals[torch.arange(pred_qvals.size(0)), actions]
 
-        # Compute 1-step Q targets
-        if self._params["double"]:
-            next_action = self._qnet(batch["next_observations"], legal_moves=batch["legal_moves_as_int"])
-        else:
-            next_action = self._target_qnet(batch["next_observations"], legal_moves=batch["legal_moves_as_int"])
+        with torch.no_grad():
+            # Compute 1-step Q targets
+            if self._params["double"]:
+                next_action = self._qnet(batch["next_observations"], legal_moves=batch["legal_moves_as_int"])
+            else:
+                next_action = self._target_qnet(batch["next_observations"], legal_moves=batch["legal_moves_as_int"])
 
-        _, next_action = torch.max(next_action, dim=1)
-        next_qvals = self._target_qnet(batch["next_observations"])
-        next_qvals = next_qvals[torch.arange(next_qvals.size(0)), next_action]
+            _, next_action = torch.max(next_action, dim=1)
+            next_qvals = self._target_qnet(batch["next_observations"])
+            next_qvals = next_qvals[torch.arange(next_qvals.size(0)), next_action]
 
-        q_targets = batch["rewards"] + self._params["discount_rate"] * next_qvals * (1 - batch["done"])
+            q_targets = batch["rewards"] + self._params["discount_rate"] * next_qvals * (1 - batch["done"])
 
         loss = self._loss_fn(pred_qvals, q_targets)
 

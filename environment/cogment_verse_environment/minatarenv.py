@@ -12,21 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
-from cogment_verse_environment.base import BaseEnv, GymObservation
-from cogment_verse_environment.env_spec import EnvSpec
-
 # Workaround for minatar's unnecessary tkagg dependency
 # (this needs to be done before the minatar import)
 # pylint: disable=wrong-import-position
 import matplotlib
+import numpy as np
+from cogment_verse_environment.base import BaseEnv, GymObservation
+from cogment_verse_environment.env_spec import EnvSpec
 
 matplotlib.use("Agg")
 matplotlib_use = matplotlib.use
 matplotlib.use = lambda *args, **kwargs: None
 import matplotlib.pyplot
-
 from minatar.environment import Environment
 
 matplotlib.use = matplotlib_use
@@ -47,6 +44,7 @@ class MinAtarEnv(BaseEnv):
         flatten=True,
         num_players=1,
         framestack=4,
+        **_kwargs,
     ):
         """
         Args:
@@ -84,7 +82,8 @@ class MinAtarEnv(BaseEnv):
         return state
 
     def seed(self, seed=None):
-        self._env.seed(seed=seed)
+        # TODO make that work, in minatar the seed should be provided in the constructor (cf. https://github.com/kenjyoung/MinAtar/blob/master/minatar/environment.py#L18-L27)
+        pass
 
     def reset(self):
         self._env.reset()

@@ -12,12 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import cv2
-
+import numpy as np
 from cogment_verse_environment.base import GymObservation
-from cogment_verse_environment.gym_env import GymEnv
 from cogment_verse_environment.env_spec import EnvSpec
+from cogment_verse_environment.gym_env import GymEnv
+from gym.envs import register
+
+# Atari-py includes a free Tetris rom for testing without needing to download other ROMs
+register(
+    id="TetrisALENoFrameskip-v0",
+    entry_point="gym.envs.atari:AtariEnv",
+    kwargs={"game": "tetris", "obs_type": "image"},
+    max_episode_steps=10000,
+    nondeterministic=False,
+)
 
 
 def _grayscale(image):
@@ -30,7 +39,15 @@ class AtariEnv(GymEnv):
     """
 
     def __init__(
-        self, *, env_name, frame_skip=4, screen_size=84, sticky_actions=True, flatten=True, num_players=1, framestack=4
+        self,
+        *,
+        env_name,
+        frame_skip=4,
+        screen_size=84,
+        sticky_actions=True,
+        flatten=True,
+        framestack=4,
+        **_kwargs,
     ):
         """
         Args:
@@ -55,7 +72,7 @@ class AtariEnv(GymEnv):
         self._flatten = flatten
         self._last_obs = []  # to be used for framestacking
 
-        super().__init__(env_name=full_env_name, num_players=num_players, framestack=framestack)
+        super().__init__(env_name=full_env_name, num_players=1, framestack=framestack)
 
     def create_env_spec(self, env_name, **_kwargs):
         act_spaces = [self._env.action_space]
