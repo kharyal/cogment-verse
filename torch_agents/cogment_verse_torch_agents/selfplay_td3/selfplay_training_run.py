@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from audioop import mul
 import logging
 from data_pb2 import (
     AgentConfig,
@@ -34,34 +35,40 @@ def create_training_run(agent_adapter):
         run_xp_tracker = MlflowExperimentTracker(run_session.params_name, run_id)
         try:
             # Initialize Alice Agent
-            alice_id = f"{run_id}_alice"
+            num_alice = config.training.num_teachers
+            alice_ids = []
+            for alice_idx in range(num_alice):
+                alice_ids.append(f"{run_id}_alice_{alice_idx}")
             alice_version_number = 1
 
             # alice_kwargs = MessageToDict(config.model_kwargs, preserving_proto_field_name=True)
-            alice, _ = await agent_adapter.create_and_publish_initial_version(
-                alice_id,
-                **{
-                    "obs_dim1": config.actor.config.num_input,
-                    "obs_dim2": config.actor.config.num_input_2,
-                    "act_dim": config.actor.config.num_action,
-                    "action_scale": config.actor.config.action_scale,
-                    "action_bias": config.actor.config.action_bias,
-                    "max_action": config.actor.config.max_action,
-                    "grid_shape": config.actor.config.alice_grid_shape,
-                    "SIGMA": config.training.SIGMA,
-                    "max_buffer_size": config.replaybuffer.max_replay_buffer_size,
-                    "min_buffer_size": config.replaybuffer.min_replay_buffer_size,
-                    "batch_size": config.training.batch_size,
-                    "num_training_steps": config.training.num_training_steps,
-                    "discount_factor": config.training.discount_factor,
-                    "tau": config.training.tau,
-                    "policy_noise": config.training.policy_noise,
-                    "noise_clip": config.training.noise_clip,
-                    "learning_rate": config.training.learning_rate,
-                    "policy_freq": config.training.policy_freq,
-                    "beta": config.training.beta,
-                },
-            )
+            alice = []
+            for alice_idx in range(num_alice):
+                alice.append(await agent_adapter.create_and_publish_initial_version(
+                    alice_ids[alice_idx],
+                    **{
+                        "obs_dim1": config.actor.config.num_input,
+                        "obs_dim2": config.actor.config.num_input_2,
+                        "act_dim": config.actor.config.num_action,
+                        "action_scale": config.actor.config.action_scale,
+                        "action_bias": config.actor.config.action_bias,
+                        "max_action": config.actor.config.max_action,
+                        "grid_shape": config.actor.config.alice_grid_shape,
+                        "SIGMA": config.training.SIGMA,
+                        "max_buffer_size": config.replaybuffer.max_replay_buffer_size,
+                        "min_buffer_size": config.replaybuffer.min_replay_buffer_size,
+                        "batch_size": config.training.batch_size,
+                        "num_training_steps": config.training.num_training_steps,
+                        "discount_factor": config.training.discount_factor,
+                        "tau": config.training.tau,
+                        "policy_noise": config.training.policy_noise,
+                        "noise_clip": config.training.noise_clip,
+                        "learning_rate": config.training.learning_rate,
+                        "policy_freq": config.training.policy_freq,
+                        "beta": config.training.beta,
+                    },
+                )[0]
+                )
 
             # Initialize Bob Agent
             bob_id = f"{run_id}_bob"
@@ -90,23 +97,26 @@ def create_training_run(agent_adapter):
                     "learning_rate": config.training.learning_rate,
                     "policy_freq": config.training.policy_freq,
                     "beta": config.training.beta,
+                    "num_alice": config.training.num_alice,
                 },
             )
 
             # create Alice_config
-            alice_configs = [
-                ActorParams(
-                    name="selfplayRL_Alice",
-                    actor_class="agent",
-                    implementation=config.actor.implementation,
-                    agent_config=AgentConfig(
-                        model_id=alice_id,
-                        model_version=alice_version_number,
-                        run_id=run_id,
-                        environment_specs=config.environment.specs,
-                    ),
+            alice_configs = []
+            for alice_idx in range(num_alice):
+                alice_configs.append(
+                    ActorParams(
+                        name="selfplayRL_Alice",
+                        actor_class="agent",
+                        implementation=config.actor.implementation,
+                        agent_config=AgentConfig(
+                            model_id=alice_ids[alice_idx],
+                            model_version=alice_version_number,
+                            run_id=run_id,
+                            environment_specs=config.environment.specs,
+                        ),
+                    )
                 )
-            ]
 
             # create Bob_config
             bob_configs = [
@@ -147,58 +157,69 @@ def create_training_run(agent_adapter):
             alice_rewards = []
             bob_rewards = []
             test_success = []
+            multiplier = config.training.multiplier
 
             # Rollout trials
             for epoch in range(config.rollout.epoch_count):
-                bob_samples = []
-                alice_samples = []
+                alice_total_reward = 0
+                bob_total_reward = 0
+                for rollout in range(num_alice*multiplier):
+                    bob_samples = []
+                    alice_samples = []
 
-                # Training
-                async for (
-                    step_idx,
+                    # Training
+                    async for (
+                        step_idx,
+                        step_timestamp,
+                        _trial_id,
+                        _tick_id,
+                        sample,
+                    ) in run_session.start_trials_and_wait_for_termination(
+                        trial_configs=train_trial_configs,
+                        max_parallel_trials=config.rollout.max_parallel_trials,
+                    ):
+
+                        if sample.current_player == 0:  # bob's sample
+                            bob_samples.append(sample)
+                            # penalize/reward alice if bob does/doesn't achieve goal
+                            if sample.player_done:
+                                if int(sample.reward) > 0:
+                                    alice_reward = config.training.alice_penalty
+                                    bob_reward = config.training.bob_reward
+                                else:
+                                    alice_reward = config.training.alice_reward
+                                    bob_reward = config.training.bob_penalty
+                                
+                                alice_total_reward += alice_reward
+                                bob_total_reward += bob_reward
+
+                                alice_samples[-1] = alice_samples[-1]._replace(reward=alice_reward)
+                                bob_samples[-1] = bob_samples[-1]._replace(reward=bob_reward)
+                                alice_rewards.append(alice_reward)
+                                bob_rewards.append(bob_reward)                                
+                        else:  # alice's sample
+                            alice_index = sample.current_player-1
+                            print(alice_index)
+                            alice_samples.append(sample)
+
+                    alice[alice_index].consume_samples(alice_samples)
+                    bob.consume_samples(bob_samples, alice_index)
+
+                run_xp_tracker.log_metrics(
                     step_timestamp,
-                    _trial_id,
-                    _tick_id,
-                    sample,
-                ) in run_session.start_trials_and_wait_for_termination(
-                    trial_configs=train_trial_configs,
-                    max_parallel_trials=config.rollout.max_parallel_trials,
-                ):
-
-                    if sample.current_player == 0:  # bob's sample
-                        bob_samples.append(sample)
-                        # penalize/reward alice if bob does/doesn't achieve goal
-                        if sample.player_done:
-                            if int(sample.reward) > 0:
-                                alice_reward = config.training.alice_penalty
-                                bob_reward = config.training.bob_reward
-                            else:
-                                alice_reward = config.training.alice_reward
-                                bob_reward = config.training.bob_penalty
-                            alice_samples[-1] = alice_samples[-1]._replace(reward=alice_reward)
-                            bob_samples[-1] = bob_samples[-1]._replace(reward=bob_reward)
-                            alice_rewards.append(alice_reward)
-                            bob_rewards.append(bob_reward)
-
-                            run_xp_tracker.log_metrics(
-                                step_timestamp,
-                                step_idx,
-                                alice_rewards=alice_reward,
-                                bob_rewards=bob_reward,
-                                difference_bob_alice_rewards=bob_reward - alice_reward,
-                            )
-                    else:  # alice's sample
-                        alice_samples.append(sample)
-
-                alice.consume_samples(alice_samples)
-                bob.consume_samples(bob_samples)
+                    step_idx,
+                    alice_rewards=alice_total_reward,
+                    bob_rewards=bob_total_reward,
+                    difference_bob_alice_rewards=bob_total_reward - alice_total_reward,
+                )
                 total_number_trials += config.rollout.epoch_train_trial_count
 
                 # Train Alice and Bob
-                alice_hyperparams = alice.learn()
+                for alice_index in range(num_alice):
+                    alice_hyperparams = alice[alice_index].learn()
                 bob_hyperparams = bob.learn(alice)
 
-                alice_version_info = await agent_adapter.publish_version(alice_id, alice)
+                alice_version_info = await agent_adapter.publish_version(alice_ids[0], alice[0]) # not sure what this does, alice_version_info isn't used anywhere
                 bob_version_info = await agent_adapter.publish_version(bob_id, bob)
 
                 # Test bob's performance

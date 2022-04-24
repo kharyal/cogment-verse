@@ -659,6 +659,8 @@ selfplay_td3_driving: &default_selfplay_td3_params
       number_turns_per_trial: 5
       test_freq: 1
     training:
+      num_teachers: 4
+      rollout_multiplier: 1
       batch_size: 64
       discount_factor: 0.99
       tau: 0.005

@@ -31,7 +31,7 @@ class SelfPlayTD3:
     def __init__(self, model_params=None, **params):
 
         self._params = params
-        self._params["name"] = self._params["id"].split("_")[-1]
+        self._params["name"] = self._params["id"].split("_")[1]
 
         self._actor_network = ActorNetwork(**self._params)
         self._critic_network = CriticNetwork(**self._params)
@@ -42,7 +42,12 @@ class SelfPlayTD3:
         self._actor_optimizer = torch.optim.Adam(self._actor_network.parameters(), lr=self._params["learning_rate"])
         self._critic_optimizer = torch.optim.Adam(self._critic_network.parameters(), lr=self._params["learning_rate"])
 
-        self._replay_buffer = Memory(**self._params)
+        if self._params["name"] == "bob":
+            self._replay_buffer = []
+            for i in range(self._params["num_alice"]):
+                self._replay_buffer.append(Memory(**self._params))
+        else:
+            self._replay_buffer = [Memory(**self._params)]
         self.total_it = 0
 
     def act(self, state, goal, grid):
@@ -100,9 +105,9 @@ class SelfPlayTD3:
 
         return state, grid, action, reward, next_state, next_grid, done
 
-    def train(self, alice):
+    def train(self, alice, index):
         self.total_it += 1
-        training_batch = self._replay_buffer.sample()
+        training_batch = self._replay_buffer[index].sample()
         state, grid, action, reward, next_state, next_grid, done = self.prepare_data(training_batch)
 
         with torch.no_grad():
@@ -140,7 +145,7 @@ class SelfPlayTD3:
             actor_loss = -self._critic_network.Q1(state, actions, grid).mean()
             if self._params["name"] == "bob":
                 # print(state.shape)
-                alice_actions = alice._actor_network(state[:, :7], grid[:, :2, :, :])
+                alice_actions = alice[index]._actor_network(state[:, :7], grid[:, :2, :, :])
                 actor_loss = actor_loss + self._params["beta"] * F.mse_loss(actions, alice_actions).mean()
 
             # Optimize the actor
@@ -164,23 +169,26 @@ class SelfPlayTD3:
 
     def learn(self, alice=None):
         mean_actor_loss, mean_critic_loss = 0, 0
-        if self._replay_buffer.get_size() >= self._params["min_buffer_size"]:
-            actor_loss, critic_loss = 0, 0
-            for _ in range(self._params["num_training_steps"]):
-                actor_loss_, critic_loss_ = self.train(alice)
-                actor_loss += actor_loss_
-                critic_loss += critic_loss_
+        for index in range(len(self._replay_buffer)):
+            if self._replay_buffer[index].get_size() >= self._params["min_buffer_size"]:
+                actor_loss, critic_loss = 0, 0
+                for _ in range(self._params["num_training_steps"]):
+                    actor_loss_, critic_loss_ = self.train(alice, index)
+                    actor_loss += actor_loss_
+                    critic_loss += critic_loss_
 
-            mean_actor_loss = actor_loss / self._params["num_training_steps"]
-            mean_critic_loss = critic_loss / self._params["num_training_steps"]
+            mean_actor_loss = actor_loss / (self._params["num_training_steps"]*len(self._replay_buffer))
+            mean_critic_loss = critic_loss / (self._params["num_training_steps"]*len(self._replay_buffer))
 
         return {"mean_actor_loss": mean_actor_loss, "mean_critic_loss": mean_critic_loss}
 
-    def consume_samples(self, samples):
+    def consume_samples(self, samples, memory_index = 0):
         """
         Consume a training sample, e.g. store in an internal replay buffer
+        memory_index is required by BOB to store each sample into memory corresponfing to a particular ALICE.
+            This is required for Behaviour Cloning
         """
-        self._replay_buffer.add(samples)
+        self._replay_buffer[memory_index].add(samples)
 
     def save(self, f):
         torch.save((self._actor_network, self._critic_network), f)
