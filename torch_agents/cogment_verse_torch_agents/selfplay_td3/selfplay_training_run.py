@@ -15,6 +15,8 @@
 from audioop import mul
 import logging
 import numpy as np
+import os
+print(os.path.abspath("."))
 from data_pb2 import (
     AgentConfig,
     ActorParams,
@@ -209,13 +211,13 @@ def create_training_run(agent_adapter):
                         bob.consume_samples(bob_samples[i], i)
 
                 print("episode:", epoch, "alice:", alice_total_reward, "bob:", bob_total_reward)
-                run_xp_tracker.log_metrics(
-                    step_timestamp,
-                    step_idx,
-                    alice_rewards=alice_total_reward,
-                    bob_rewards=bob_total_reward,
-                    difference_bob_alice_rewards=bob_total_reward - alice_total_reward,
-                )
+                # run_xp_tracker.log_metrics(
+                #     step_timestamp,
+                #     step_idx,
+                #     alice_rewards=alice_total_reward,
+                #     bob_rewards=bob_total_reward,
+                #     difference_bob_alice_rewards=bob_total_reward - alice_total_reward,
+                # )
                 rewards.append([alice_total_reward, bob_total_reward])
                 total_number_trials += config.rollout.epoch_train_trial_count
 
@@ -224,11 +226,11 @@ def create_training_run(agent_adapter):
                     alice_hyperparams = alice[alice_index].learn()
                 bob_hyperparams = bob.learn(alice)
 
-                alice_version_info = await agent_adapter.publish_version(alice_ids[0], alice[0]) # not sure what this does, alice_version_info isn't used anywhere
-                bob_version_info = await agent_adapter.publish_version(bob_id, bob)
+                # alice_version_info = await agent_adapter.publish_version(alice_ids[0], alice[0]) # not sure what this does, alice_version_info isn't used anywhere
+                # bob_version_info = await agent_adapter.publish_version(bob_id, bob)
 
                 # Test bob's performance
-                if epoch and epoch % config.rollout.test_freq == 0:
+                if epoch % config.rollout.test_freq == 0:
                     total_success = 0
                     async for (
                         step_idx,
@@ -246,18 +248,19 @@ def create_training_run(agent_adapter):
                                 if int(sample.reward) > 0:
                                     test_success[-1] = 1
                                     total_success+=1
+                                    print("success")
 
-                                run_xp_tracker.log_metrics(
-                                    step_timestamp,
-                                    step_idx,
-                                    bob_success=test_success[-1],
-                                )
-                    run_xp_tracker.log_metrics(epoch, 100*total_success/config.rollout.epoch_test_trial_count)
+                                # run_xp_tracker.log_metrics(
+                                #     step_timestamp,
+                                #     step_idx,
+                                #     bob_success=test_success[-1],
+                                # )
+                    # run_xp_tracker.log_metrics(epoch, 100*total_success/config.rollout.epoch_test_trial_count)
                     success_.append(100*total_success/config.rollout.epoch_test_trial_count)
                     np.save("rewards", np.array(rewards))
                     np.save("success", success_)
 
-            run_xp_tracker.terminate_success()
+            # run_xp_tracker.terminate_success()
 
         except Exception as exception:
             logging.error(f"An exception occurred: {exception}")

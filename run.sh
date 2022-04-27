@@ -293,7 +293,7 @@ function test() {
 }
 
 function services_start() {
-  _run_parallel orchestrator_start trial_datastore_start model_registry_start environment_start tf_agents_start torch_agents_start mlflow_start
+  _run_parallel orchestrator_start trial_datastore_start model_registry_start environment_start tf_agents_start torch_agents_start
 }
 
 ### MAIN SCRIPT ###
