@@ -44,7 +44,7 @@ class DrivingEnv(BaseEnv):
         self.agent_done = False
         self.trial_done = False
         self.current_turn = 0
-        self.total_num_turns = 5
+        self.total_num_turns = self.num_players-1
         self.mode = kwargs["mode"]
 
         super().__init__(env_spec=self.create_env_spec(**kwargs), num_players=num_players, framestack=framestack)

@@ -38,7 +38,7 @@ def create_training_run(agent_adapter):
             num_alice = config.training.num_teachers
             alice_ids = []
             for alice_idx in range(num_alice):
-                alice_ids.append(f"{run_id}_alice_{alice_idx}")
+                alice_ids.append(f"{run_id}_{alice_idx}_alice")
             alice_version_number = 1
 
             # alice_kwargs = MessageToDict(config.model_kwargs, preserving_proto_field_name=True)
@@ -205,7 +205,7 @@ def create_training_run(agent_adapter):
                         alice[i].consume_samples(alice_samples[i])
                         bob.consume_samples(bob_samples[i], i)
 
-                print("episode:", epoch, "alice:", alice_rewards, "bob:", bob_rewards)
+                print("episode:", epoch, "alice:", alice_total_reward, "bob:", bob_total_reward)
                 run_xp_tracker.log_metrics(
                     step_timestamp,
                     step_idx,
