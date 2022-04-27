@@ -652,12 +652,12 @@ selfplay_td3_driving: &default_selfplay_td3_params
           expl_noise: 0.1
     rollout:
       epoch_count: 1000
-      epoch_train_trial_count: 2
-      epoch_test_trial_count: 2
+      epoch_train_trial_count: 1
+      epoch_test_trial_count: 100
       max_parallel_trials: 1
       model_publication_interval: 10
       number_turns_per_trial: 5
-      test_freq: 1
+      test_freq: 100
     training:
       num_teachers: 4
       rollout_multiplier: 1
@@ -674,7 +674,7 @@ selfplay_td3_driving: &default_selfplay_td3_params
       alice_reward: 5.0
       bob_reward: 5.0
       alice_penalty: -5.0
-      bob_penalty: -2.0
+      bob_penalty: 0
     replaybuffer:
       min_replay_buffer_size: 256
       max_replay_buffer_size: 100000

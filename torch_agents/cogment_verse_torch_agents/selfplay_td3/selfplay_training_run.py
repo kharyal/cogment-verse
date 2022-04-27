@@ -225,6 +225,7 @@ def create_training_run(agent_adapter):
 
                 # Test bob's performance
                 if epoch and epoch % config.rollout.test_freq == 0:
+                    total_success = 0
                     async for (
                         step_idx,
                         step_timestamp,
@@ -240,18 +241,20 @@ def create_training_run(agent_adapter):
                                 test_success.append(0)
                                 if int(sample.reward) > 0:
                                     test_success[-1] = 1
+                                    total_success+=1
 
                                 run_xp_tracker.log_metrics(
                                     step_timestamp,
                                     step_idx,
                                     bob_success=test_success[-1],
                                 )
+                    run_xp_tracker.log_metrics(epoch, 100*total_success/config.rollout.epoch_test_trial_count)
 
             run_xp_tracker.terminate_success()
 
         except Exception as exception:
             logging.error(f"An exception occurred: {exception}")
-            run_xp_tracker.terminate_failure()
+            run_xp_tracker.terminate_failure(config.rollout.epoch_test_trial_count)
             raise
 
     return training_run
