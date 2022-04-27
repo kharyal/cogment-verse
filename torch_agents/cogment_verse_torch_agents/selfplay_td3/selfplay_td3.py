@@ -20,7 +20,7 @@ import torch.nn.functional as F
 import torch
 
 
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # pylint: disable=C0103
 # pylint: disable=W0613
