@@ -20,7 +20,7 @@ import sys
 
 import gym
 
-# import pybullet_driving_env
+#import pybullet_driving_env
 from cogment_verse_environment.pybullet_driving_env.envs.simple_driving_env import SimpleDrivingEnv
 from cogment_verse_environment.base import BaseEnv, GymObservation
 from cogment_verse_environment.env_spec import EnvSpec
@@ -32,7 +32,7 @@ class DrivingEnv(BaseEnv):
     Class for loading pybullet-driving-env
     """
 
-    def __init__(self, *, num_players=2, framestack=1, spawn=[10, 10], **kwargs):
+    def __init__(self, *, num_players=5, framestack=1, spawn=[10, 10], **kwargs):
         assert num_players > 1
         self.create_env()
 

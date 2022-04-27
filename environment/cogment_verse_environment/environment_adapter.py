@@ -155,6 +155,8 @@ class EnvironmentAdapter:
                 # todo: Make this more general and configurable (via TrialConfig)
                 if len(actors) != env.num_players:
                     log.debug(len(actors), env.num_players)
+                    print(len(actors))
+                    print(env.num_players)
                     assert len(actors) == env.num_players + 1
                     for idx, actor in enumerate(actors):
                         log.debug(idx, actor.actor_name, actor.actor_class_name)

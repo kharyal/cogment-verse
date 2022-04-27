@@ -44,7 +44,7 @@ def create_training_run(agent_adapter):
             # alice_kwargs = MessageToDict(config.model_kwargs, preserving_proto_field_name=True)
             alice = []
             for alice_idx in range(num_alice):
-                alice.append(await agent_adapter.create_and_publish_initial_version(
+                alice.append((await agent_adapter.create_and_publish_initial_version(
                     alice_ids[alice_idx],
                     **{
                         "obs_dim1": config.actor.config.num_input,
@@ -67,7 +67,7 @@ def create_training_run(agent_adapter):
                         "policy_freq": config.training.policy_freq,
                         "beta": config.training.beta,
                     },
-                )[0]
+                ))[0]
                 )
 
             # Initialize Bob Agent
@@ -97,7 +97,7 @@ def create_training_run(agent_adapter):
                     "learning_rate": config.training.learning_rate,
                     "policy_freq": config.training.policy_freq,
                     "beta": config.training.beta,
-                    "num_alice": config.training.num_alice,
+                    "num_alice": config.training.num_teachers,
                 },
             )
 
@@ -106,7 +106,7 @@ def create_training_run(agent_adapter):
             for alice_idx in range(num_alice):
                 alice_configs.append(
                     ActorParams(
-                        name="selfplayRL_Alice",
+                        name="selfplayRL_Alice"+str(alice_idx),
                         actor_class="agent",
                         implementation=config.actor.implementation,
                         agent_config=AgentConfig(
@@ -157,16 +157,16 @@ def create_training_run(agent_adapter):
             alice_rewards = []
             bob_rewards = []
             test_success = []
-            multiplier = config.training.multiplier
+            multiplier = config.training.rollout_multiplier
 
             # Rollout trials
             for epoch in range(config.rollout.epoch_count):
+
                 alice_total_reward = 0
                 bob_total_reward = 0
-                for rollout in range(num_alice*multiplier):
-                    bob_samples = []
-                    alice_samples = []
-
+                alice_samples = [[] for i in range(num_alice)]
+                bob_samples = [[] for i in range(num_alice)]
+                for rollout in range(1):
                     # Training
                     async for (
                         step_idx,
@@ -180,7 +180,7 @@ def create_training_run(agent_adapter):
                     ):
 
                         if sample.current_player == 0:  # bob's sample
-                            bob_samples.append(sample)
+                            bob_samples[alice_index].append(sample)
                             # penalize/reward alice if bob does/doesn't achieve goal
                             if sample.player_done:
                                 if int(sample.reward) > 0:
@@ -189,22 +189,23 @@ def create_training_run(agent_adapter):
                                 else:
                                     alice_reward = config.training.alice_reward
                                     bob_reward = config.training.bob_penalty
-                                
+
                                 alice_total_reward += alice_reward
                                 bob_total_reward += bob_reward
 
-                                alice_samples[-1] = alice_samples[-1]._replace(reward=alice_reward)
-                                bob_samples[-1] = bob_samples[-1]._replace(reward=bob_reward)
+                                alice_samples[alice_index][-1] = alice_samples[alice_index][-1]._replace(reward=alice_reward)
+                                bob_samples[alice_index][-1] = bob_samples[alice_index][-1]._replace(reward=bob_reward)
                                 alice_rewards.append(alice_reward)
-                                bob_rewards.append(bob_reward)                                
+                                bob_rewards.append(bob_reward)
                         else:  # alice's sample
                             alice_index = sample.current_player-1
-                            print(alice_index)
-                            alice_samples.append(sample)
+                            alice_samples[alice_index].append(sample)
 
-                    alice[alice_index].consume_samples(alice_samples)
-                    bob.consume_samples(bob_samples, alice_index)
+                    for i in range(num_alice):
+                        alice[i].consume_samples(alice_samples[i])
+                        bob.consume_samples(bob_samples[i], i)
 
+                print("episode:", epoch, "alice:", alice_rewards, "bob:", bob_rewards)
                 run_xp_tracker.log_metrics(
                     step_timestamp,
                     step_idx,

@@ -31,7 +31,7 @@ class SelfPlayTD3:
     def __init__(self, model_params=None, **params):
 
         self._params = params
-        self._params["name"] = self._params["id"].split("_")[1]
+        self._params["name"] = self._params["id"].split("_")[2]
 
         self._actor_network = ActorNetwork(**self._params)
         self._critic_network = CriticNetwork(**self._params)
@@ -123,7 +123,6 @@ class SelfPlayTD3:
             # Compute the target Q value
             target_Q1, target_Q2 = self._critic_target_network(next_state, next_action, next_grid)
             target_Q = torch.min(target_Q1, target_Q2)
-            # print(target_Q.shape, not_done.shape)
             target_Q = reward.reshape(target_Q.shape) + (1.0 - done) * self._params["discount_factor"] * target_Q
 
         # Get current Q estimates
@@ -169,9 +168,10 @@ class SelfPlayTD3:
 
     def learn(self, alice=None):
         mean_actor_loss, mean_critic_loss = 0, 0
+
         for index in range(len(self._replay_buffer)):
+            actor_loss, critic_loss = 0, 0
             if self._replay_buffer[index].get_size() >= self._params["min_buffer_size"]:
-                actor_loss, critic_loss = 0, 0
                 for _ in range(self._params["num_training_steps"]):
                     actor_loss_, critic_loss_ = self.train(alice, index)
                     actor_loss += actor_loss_

@@ -309,6 +309,8 @@ message SelfPlayTrainingConfig{
   float bob_reward = 12;
   float alice_penalty = 13;
   float bob_penalty = 14;
+  uint32 num_teachers = 15;
+  uint32 rollout_multiplier = 16;
 }
 
 

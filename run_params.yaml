@@ -625,7 +625,7 @@ selfplay_td3_driving: &default_selfplay_td3_params
     environment:
       specs:
         implementation: driving/SimpleDriving-v0
-        num_players: 2
+        num_players: 5
       config:
         seed: 12
         render_width: 1000
