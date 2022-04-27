@@ -68,7 +68,8 @@ class SelfPlayAgentAdapter(AgentAdapter):
                     obs = event.observation.snapshot
                     # process observation
                     # agent acts when its turn
-                    if (obs.current_player == 1 and agent == "alice") or (obs.current_player == 0 and agent == "bob"):
+                    # print(agent)
+                    if ((not obs.current_player == 0) and agent == "alice") or (obs.current_player == 0 and agent == "bob"):
                         state = tensor_from_cog_state(obs)
                         goal = tensor_from_cog_goal(obs)
                         grid = tensor_from_cog_grid(obs)
