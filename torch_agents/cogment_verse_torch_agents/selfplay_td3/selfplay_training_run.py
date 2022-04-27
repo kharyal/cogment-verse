@@ -14,6 +14,7 @@
 
 from audioop import mul
 import logging
+import numpy as np
 from data_pb2 import (
     AgentConfig,
     ActorParams,
@@ -157,6 +158,8 @@ def create_training_run(agent_adapter):
             alice_rewards = []
             bob_rewards = []
             test_success = []
+            rewards = []
+            success_ = []
             multiplier = config.training.rollout_multiplier
 
             # Rollout trials
@@ -213,6 +216,7 @@ def create_training_run(agent_adapter):
                     bob_rewards=bob_total_reward,
                     difference_bob_alice_rewards=bob_total_reward - alice_total_reward,
                 )
+                rewards.append([alice_total_reward, bob_total_reward])
                 total_number_trials += config.rollout.epoch_train_trial_count
 
                 # Train Alice and Bob
@@ -249,6 +253,9 @@ def create_training_run(agent_adapter):
                                     bob_success=test_success[-1],
                                 )
                     run_xp_tracker.log_metrics(epoch, 100*total_success/config.rollout.epoch_test_trial_count)
+                    success_.append(100*total_success/config.rollout.epoch_test_trial_count)
+                    np.save("rewards", np.array(rewards))
+                    np.save("success", success_)
 
             run_xp_tracker.terminate_success()
 
