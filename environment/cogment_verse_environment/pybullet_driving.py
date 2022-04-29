@@ -32,7 +32,7 @@ class DrivingEnv(BaseEnv):
     Class for loading pybullet-driving-env
     """
 
-    def __init__(self, *, num_players=5, framestack=1, spawn=[10, 10], **kwargs):
+    def __init__(self, *, num_players=3, framestack=1, spawn=[10, 10], **kwargs):
         assert num_players > 1
         self.create_env()
 
