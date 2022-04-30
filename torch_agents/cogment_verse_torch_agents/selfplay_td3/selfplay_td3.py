@@ -21,6 +21,7 @@ import torch
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 # pylint: disable=C0103
 # pylint: disable=W0613

@@ -29,9 +29,9 @@ function _py_build() {
   directory=$1
   cp "${ROOT_DIR}/data.proto" "${ROOT_DIR}/cogment.yaml" "${ROOT_DIR}/${directory}"
   pushd "${ROOT_DIR}/${directory}"
-  virtualenv -p python3 .venv
+  virtualenv -p python3 env
   # shellcheck disable=SC1091
-  source .venv/bin/activate
+  source env/bin/activate
   pip install -r requirements.txt
   python -m cogment.generate
   deactivate
@@ -43,7 +43,7 @@ function _py_test() {
   directory=$1
   pushd "${ROOT_DIR}/${directory}"
   # shellcheck disable=SC1091
-  source .venv/bin/activate
+  source env/bin/activate
   python -m pytest
   deactivate
   popd
@@ -53,7 +53,7 @@ function _py_start() {
   _load_dot_env
   directory=$1
   pushd "${ROOT_DIR}/${directory}"
-  .venv/bin/python -m main
+  env/bin/python -m main
   popd
 }
 
@@ -97,9 +97,9 @@ function base_python_build() {
   cp "${ROOT_DIR}/data.proto" "${ROOT_DIR}/cogment.yaml" "${ROOT_DIR}/base_python"
   cp "${ROOT_DIR}/run_api.proto" "${ROOT_DIR}/base_python/cogment_verse/api/"
   pushd "${ROOT_DIR}/base_python"
-  virtualenv -p python3 .venv
+  virtualenv -p python3 env
   # shellcheck disable=SC1091
-  source .venv/bin/activate
+  source env/bin/activate
   pip install -e . # This is a reusable package, it needs to install itself
   pip install -r requirements.txt
   python -m cogment.generate
@@ -117,7 +117,7 @@ function client_build() {
   pushd "${ROOT_DIR}/client"
   cp "${ROOT_DIR}/run_api.proto" "./"
   # shellcheck disable=SC1091
-  source .venv/bin/activate
+  source env/bin/activate
   python -m grpc.tools.protoc --proto_path=. --python_out=. --grpc_python_out=. ./run_api.proto
   deactivate
   popd
@@ -126,14 +126,14 @@ function client_build() {
 function client() {
   _load_dot_env
   pushd "${ROOT_DIR}/client"
-  COGMENT_VERSE_RUN_PARAMS_PATH="${ROOT_DIR}/run_params.yaml" .venv/bin/python -m main "$@"
+  COGMENT_VERSE_RUN_PARAMS_PATH="${ROOT_DIR}/run_params.yaml" env/bin/python -m main "$@"
 }
 
 function atari_roms_install() {
   _load_dot_env
   pushd "${ROOT_DIR}/environment"
   # shellcheck disable=SC1091
-  source .venv/bin/activate
+  source env/bin/activate
   if [ -d ".atari_roms" ]; then
     printf "environment/.atari_roms already exists, skipping atari roms import \n"
   else
@@ -187,9 +187,9 @@ function torch_agents_test() {
 
 function root_build() {
   _load_dot_env
-  virtualenv -p python3 "${ROOT_DIR}/.venv"
+  virtualenv -p python3 "${ROOT_DIR}/env"
   # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.venv/bin/activate"
+  source "${ROOT_DIR}/env/bin/activate"
   pip install -r "${ROOT_DIR}/requirements.txt"
   deactivate
 }
@@ -197,16 +197,16 @@ function root_build() {
 function lint() {
   _load_dot_env
   # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.venv/bin/activate"
+  source "${ROOT_DIR}/env/bin/activate"
   black --diff .
-  find . -name '*.py' -not -path '*/.venv/*' -print0 | xargs -0 pylint -j 4
+  find . -name '*.py' -not -path '*/env/*' -print0 | xargs -0 pylint -j 4
   deactivate
 }
 
 function lint_fix() {
   _load_dot_env
   # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.venv/bin/activate"
+  source "${ROOT_DIR}/env/bin/activate"
   black .
   deactivate
 }
@@ -218,7 +218,7 @@ function mlflow_build() {
 function mlflow_start() {
   _load_dot_env
   # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.venv/bin/activate"
+  source "${ROOT_DIR}/env/bin/activate"
   mlflow server \
     --host 0.0.0.0 \
     --port "${COGMENT_VERSE_MLFLOW_PORT}" \
