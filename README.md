@@ -79,7 +79,7 @@ selfplay_td3_driving: &default_selfplay_td3_params
 ```
 Based on this, you will also have to change the default number of agents in `environment/pybullet_driving.py` to `num_teacher + 1`.
 
-The eun generates `.npy` files for success rate and adversarial rewards in the `torch_agents` directory. Once the run completes, the results can be visualised using matplotlib as:
+The run generates `.npy` files for success rate and adversarial rewards in the `torch_agents` directory. Once the run completes, the results can be visualised using matplotlib as:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
