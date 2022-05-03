@@ -72,7 +72,7 @@ selfplay_td3_driving: &default_selfplay_td3_params
       bob_penalty: 0
     replaybuffer:
       min_replay_buffer_size: 256
-      max_replay_buffer_size: 100000
+      max_replay_buffer_size: 5000
       replay_buffer_config:
         observation_dtype: float32
         action_dtype: float32
